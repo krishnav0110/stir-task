@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trending Topics</title>
+</head>
+<body>
+    <a href="#" class="run-script-btn">Click here to run the script</a>
+    <div class="status" style="padding: 20px 0;"></div>
+
+    <div class="date-time"></div>
+    <div class="trends" style="padding: 20px 0;"></div>
+    <div class="ip" style="padding: 20px 0;"></div>
+    <div class="json-data"></div>
+
+    <script>
+        const runScirptBtn = document.querySelector(".run-script-btn");
+        const statusField = document.querySelector(".status");
+        const dateTimeField = document.querySelector(".date-time");
+        const trendsField = document.querySelector(".trends");
+        const ipField = document.querySelector(".ip");
+        const jsonDataField = document.querySelector(".json-data");
+
+
+
+        const eventSource = new EventSource("/api/status");
+        eventSource.addEventListener("proxyFind", (event) => {
+            const status = JSON.parse(event.data);
+            statusField.innerHTML = `
+                <div>Status: </div>
+                <div>Current Failed Proxy Count: ${status.failedProxyCount} / ${status.totalProxies}</div>
+                <div>After all proxies fail, the default ip will be used</div>
+                <div>To force using default IP after certain proxies change USE_DEFAULT_IP_AFTER_X_FAILED_PROXIES in constants.js and restart the server</div>
+            `;
+        });
+        eventSource.addEventListener("fetchTopics", (event) => {
+            const status = JSON.parse(event.data);
+            let message = "Fetching...";
+            if (status.defaultIpUsed) {
+                message = `
+                    <div>All proxies may have failed or the count has exceeded USE_DEFAULT_IP_AFTER_X_FAILED_PROXIES</div>
+                    <div>Default IP being used: ${status.defaultIpUsed}</div>
+                    <div>Fetching...</div>
+                `;
+            }
+            statusField.innerHTML = `
+                <div>Status: </div>
+                ${message}
+            `;
+        });
+        eventSource.onerror = () => {
+            const href = window.location.href;
+            const status = `
+                <div>Error receiving status updates go to <a href=${href}>${href}api/status</a></div>
+            `;
+            statusField.innerHTML = status;
+        };
+
+
+
+        runScirptBtn.addEventListener("click", async (event) => {
+            event.preventDefault();
+            statusField.innerHTML = "Fetching status...";
+
+            const res = await fetch("/api/topics");
+            const topics = await res.json();
+            
+            const dateTime = new Date(topics.dateTime);
+            dateTimeField.innerHTML = `These are the most happening topics as on ${dateTime.toLocaleDateString("en-IN")} ${dateTime.toLocaleTimeString("en-IN")} IST`;
+            trendsField.innerHTML = topics.topics.map(topic => (
+                `<div> - ${topic}</div>`
+            )).join("");
+
+            ipField.innerHTML = `The IP address used for this query was ${topics.ip}`;
+
+            jsonDataField.innerHTML = `
+                Here's a JSON extract of this record from the MongoDB:
+                <pre>${JSON.stringify(topics, null, 4)}</pre>
+            `;
+        });
+    </script>
+</body>
+</html>
